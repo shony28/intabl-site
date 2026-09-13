@@ -2,6 +2,7 @@ const form=document.getElementById('market-search'),region=form.elements.region,
 let places=[],version=0;const cache=new Map();
 function suggestions(){const q=cityText.value.trim().toLocaleLowerCase('uk');list.replaceChildren(...places.filter(p=>(p.label||p.name).toLocaleLowerCase('uk').includes(q)).slice(0,40).map(p=>{const o=document.createElement('option');o.value=p.label||p.name;return o;}));}
 async function loadCities(restore=false){
+ const filter=form.querySelector('.location-filter');if(filter){filter.querySelector('summary span').textContent=region.value?'· '+region.selectedOptions[0].textContent:'· уся Україна';if(restore&&region.value)filter.open=true;}
  const run=++version;places=[];list.replaceChildren();cityText.disabled=true;cityText.setCustomValidity('');
  if(!restore){cityText.value='';cityId.value='';}
  if(!region.value){cityText.value='';cityId.value='';locationStatus.textContent='Місто можна обрати після області. Без фільтрів шукаємо по всій Україні.';return;}
