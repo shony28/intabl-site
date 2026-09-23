@@ -1,4 +1,4 @@
 User-agent: *
 Disallow:
-Sitemap: https://2828.pp.ua/sitemap.xml
-Sitemap: https://api.2828.pp.ua/sitemap.xml
+Sitemap: https://intabl.com/sitemap.xml
+Sitemap: https://api.intabl.com/sitemap.xml
