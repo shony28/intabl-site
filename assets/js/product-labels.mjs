@@ -1,0 +1,3 @@
+export const labelNames={hit:'Хіт продажів',new:'Новинка',sale:'Акція'};
+export function splitLabels(value){const values=String(value??'').split(/[;,|]/).map(v=>v.trim()).filter(Boolean);return {labels:Object.keys(labelNames).filter(key=>values.some(v=>v.toLowerCase()===key)),tags:values.filter(v=>!Object.hasOwn(labelNames,v.toLowerCase()))};}
+export function appendLabels(container,labels=[]){if(!labels.length)return;const group=document.createElement('div');group.className='product-labels';for(const key of labels){if(!Object.hasOwn(labelNames,key))continue;const badge=document.createElement('span');badge.className='product-label product-label-'+key;badge.textContent=labelNames[key];group.append(badge);}if(group.childElementCount)container.append(group);}

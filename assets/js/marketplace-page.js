@@ -1,4 +1,4 @@
-import {splitLabels,appendLabels} from './product-labels.mjs?v=1';
+import {splitLabels,appendLabels} from './product-labels.mjs?v=2';
 const form=document.getElementById('market-search'),region=form.elements.region,cityText=document.getElementById('market-city'),cityId=form.elements.city,list=document.getElementById('market-cities'),locationStatus=document.getElementById('location-status');
 let places=[],version=0;const cache=new Map();
 function suggestions(){const q=cityText.value.trim().toLocaleLowerCase('uk');list.replaceChildren(...places.filter(p=>(p.label||p.name).toLocaleLowerCase('uk').includes(q)).slice(0,40).map(p=>{const o=document.createElement('option');o.value=p.label||p.name;return o;}));}
