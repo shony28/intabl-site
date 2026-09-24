@@ -22,9 +22,10 @@ if(api&&categorySelect){
  }catch{const hint=document.createElement('p');hint.className='hint';hint.textContent='Категорії тимчасово недоступні. Пошук товарів продовжує працювати.';categorySelect.after(hint);}finally{clearTimeout(timeout);}})();
 }
 if(api){
- const results=document.getElementById('results'),status=document.getElementById('search-status'),prev=document.getElementById('previous'),next=document.getElementById('next'),submit=form.querySelector('[type=submit]');let page=1,active=new URLSearchParams(),searchRun=0;
+ const resultsArea=document.getElementById('search-results'),results=document.getElementById('results'),status=document.getElementById('search-status'),prev=document.getElementById('previous'),next=document.getElementById('next'),submit=form.querySelector('[type=submit]');let page=1,active=new URLSearchParams(),searchRun=0;
  const el=(tag,text,cls)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n;};
  async function search(params,push=false){
+  if(resultsArea)resultsArea.hidden=false;
   const run=++searchRun,controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),15000);
   submit.disabled=true;prev.disabled=true;next.disabled=true;results.setAttribute('aria-busy','true');status.textContent='Шукаємо товари…';
   try{const request=new URL(api);request.search=new URLSearchParams([...params,['format','json']]);const response=await fetch(request,{credentials:'omit',signal:controller.signal}),body=await response.json();if(!response.ok||!body.success)throw Error(body.error?.message||'Пошук тимчасово недоступний. Повторіть спробу.');
@@ -38,8 +39,8 @@ if(api){
   }catch(error){if(run!==searchRun)return;results.replaceChildren(el('p',error.name==='AbortError'?'Сервер відповідає надто довго. Натисніть «Знайти товари» ще раз.':error.message,'error'));status.textContent='Не вдалося виконати пошук';prev.hidden=true;next.hidden=true;}
   finally{clearTimeout(timeout);if(run===searchRun){submit.disabled=false;prev.disabled=false;next.disabled=false;results.removeAttribute('aria-busy');}}
  }
- form.addEventListener('submit',event=>{event.preventDefault();const params=new URLSearchParams(new FormData(form));params.delete('city_label');params.delete('page');void search(params,true);});
+ form.addEventListener('submit',event=>{event.preventDefault();const params=new URLSearchParams(new FormData(form));params.delete('city_label');params.delete('page');params.set('search','1');void search(params,true);});
  prev.addEventListener('click',()=>{const p=new URLSearchParams(active);p.set('page',String(page-1));void search(p,true);});next.addEventListener('click',()=>{const p=new URLSearchParams(active);p.set('page',String(page+1));void search(p,true);});
- function restore(){const p=new URLSearchParams(location.search);form.elements.q.value=p.get('q')||'';if(categorySelect){const id=p.get('category')||'';if(id&&![...categorySelect.options].some(o=>o.value===id)){const option=document.createElement('option');option.value=id;option.textContent='Недоступна категорія — оберіть іншу';categorySelect.append(option);}categorySelect.value=id;}region.value=p.get('region')||'';cityId.value=p.get('city')||'';void loadCities(true);void search(p);}
+ function restore(){const p=new URLSearchParams(location.search);form.elements.q.value=p.get('q')||'';if(categorySelect){const id=p.get('category')||'';if(id&&![...categorySelect.options].some(o=>o.value===id)){const option=document.createElement('option');option.value=id;option.textContent='Недоступна категорія — оберіть іншу';categorySelect.append(option);}categorySelect.value=id;}region.value=p.get('region')||'';cityId.value=p.get('city')||'';void loadCities(true);if(p.has('q')||p.get('category')||p.get('region')||p.get('city')||p.get('search')==='1'){void search(p);}else{++searchRun;results.replaceChildren();results.removeAttribute('aria-busy');status.textContent='';submit.disabled=false;prev.hidden=true;next.hidden=true;if(resultsArea)resultsArea.hidden=true;}}
  window.addEventListener('popstate',restore);restore();
 }
