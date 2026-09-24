@@ -33,25 +33,23 @@
   <dialog id="mobile-create-notice" aria-labelledby="mobile-create-title" aria-describedby="mobile-create-description">
     <h2 id="mobile-create-title">Увімкніть десктопну версію</h2>
     <p id="mobile-create-description">Для підключення магазину відкрийте Google Таблицю в браузері та ввімкніть у його меню «Версія для комп’ютера» або «Десктопний сайт». У мобільному застосунку Google Таблиць меню INTABL недоступне.</p>
-    <p class="note">Найзручніше пройти перше підключення з комп’ютера. Якщо ви вже ввімкнули десктопну версію, можете перейти до шаблону.</p>
-    <div class="actions"><a id="mobile-create-continue" class="button create-store" target="_blank" rel="noopener noreferrer">Перейти до шаблону ↗</a><button type="button" class="button secondary" id="mobile-create-close" autofocus>Зрозуміло</button></div>
+    <p class="note">Найзручніше пройти перше підключення з комп’ютера.</p>
+    <div class="actions"><button type="button" class="button secondary" id="mobile-create-close" autofocus>Зрозуміло</button></div>
   </dialog>
   <style>#mobile-create-notice{width:min(560px,calc(100% - 32px));max-height:calc(100dvh - 32px);overflow:auto;border:1px solid var(--line);border-radius:16px;padding:28px;color:var(--ink);background:white}#mobile-create-notice::backdrop{background:#0008}#mobile-create-notice h2{font-size:26px;margin:0 0 18px}#mobile-create-notice .actions{margin-bottom:0}#mobile-create-notice button{font:inherit;cursor:pointer}#mobile-create-notice button:focus-visible{outline:3px solid #44444b;outline-offset:4px}</style>
   <script>
     (()=>{
-      const create=document.querySelector('a.create-store'),notice=document.getElementById('mobile-create-notice'),proceed=document.getElementById('mobile-create-continue');
-      proceed.href=create.href;
+      const create=document.querySelector('a.create-store'),notice=document.getElementById('mobile-create-notice');
       const isMobile=()=>navigator.userAgentData?.mobile||/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1)||matchMedia('(max-width: 1024px) and (pointer: coarse)').matches;
       create.addEventListener('click',event=>{
         if(!isMobile())return;
         if(typeof notice.showModal!=='function'){
-          if(!confirm('Для підключення магазину відкрийте Google Таблицю в браузері та ввімкніть «Версія для комп’ютера». Перейти до шаблону?'))event.preventDefault();
+          event.preventDefault();alert('Для підключення магазину відкрийте Google Таблицю в браузері та ввімкніть «Версія для комп’ютера». Найзручніше пройти перше підключення з комп’ютера.');
           return;
         }
         event.preventDefault();notice.showModal();
       });
       document.getElementById('mobile-create-close').addEventListener('click',()=>notice.close());
-      proceed.addEventListener('click',()=>notice.close());
     })();
   </script>
 </body>
