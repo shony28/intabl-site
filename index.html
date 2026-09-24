@@ -30,5 +30,29 @@
     <section class="details" aria-label="Важливо для початку"><div><h2>Що потрібно знати</h2><details><summary>Скільки коштує створення магазину?</summary><p>Створення та використання магазину на Intabl безкоштовні. Ви можете додавати товари з Google Таблиці та приймати замовлення у своєму магазині.</p></details><details><summary>Де додавати товари?</summary><p>На аркуші goods у вашій копії шаблону. Замініть демонстраційний товар своїм. Категорії редагуйте на category. Не змінюйте назви цих аркушів і заголовки першого рядка.</p></details><details><summary>Хто бачить мою таблицю?</summary><p>Після відкриття доступу її можуть читати всі, хто має посилання. Зберігайте тут лише публічний каталог — без замовлень, телефонів покупців і паролів.</p></details><details><summary>Навіщо підтверджувати дозволи Google?</summary><p>Під час першого підключення Google попросить дозволити роботу скрипту з шаблону. Це звичайний крок для таких інструментів: дозволи потрібні, щоб перевірити вашу таблицю та підключити її до магазину без ручного налаштування коду. Ви проходите кроки підключення, а скрипт бере на себе технічну частину.</p><p>Перед підтвердженням ознайомтеся з переліком доступів і продовжуйте, якщо довіряєте шаблону Intabl.</p><p>Для зручності можна створити окремий Google-акаунт лише для магазину — без особистих файлів і листування. Скопіюйте шаблон у цей акаунт і використовуйте його також для входу в кабінет Intabl. Дозволи для підключення знадобляться і в окремому акаунті.</p></details></div><aside class="test-note"><span class="badge">Тестовий запуск</span><h3>Магазини та спільний каталог</h3><p>Можна створити магазин, показувати товари, користуватися категоріями, пошуком і кошиком.</p><p>У кабінеті можна налаштувати назву, логотип, розташування та доставку. Покупці можуть оформити замовлення, а продавці — переглядати їх і змінювати статус у кабінеті.</p><p>Для участі у спільному пошуку виберіть область і населений пункт у налаштуваннях, увімкніть участь та оновіть товари через меню INTABL у таблиці.</p><a href="/marketplace.html">Переглянути товари ↗</a></aside></section>
   </main>
   <footer><span>Intabl · Безкоштовний магазин із Google Таблиці</span><span>Тестовий запуск · <a href="/data-sources.html">Джерела даних</a></span></footer>
+  <dialog id="mobile-create-notice" aria-labelledby="mobile-create-title" aria-describedby="mobile-create-description">
+    <h2 id="mobile-create-title">Увімкніть десктопну версію</h2>
+    <p id="mobile-create-description">Для підключення магазину відкрийте Google Таблицю в браузері та ввімкніть у його меню «Версія для комп’ютера» або «Десктопний сайт». У мобільному застосунку Google Таблиць меню INTABL недоступне.</p>
+    <p class="note">Найзручніше пройти перше підключення з комп’ютера. Якщо ви вже ввімкнули десктопну версію, можете перейти до шаблону.</p>
+    <div class="actions"><a id="mobile-create-continue" class="button create-store" target="_blank" rel="noopener noreferrer">Перейти до шаблону ↗</a><button type="button" class="button secondary" id="mobile-create-close" autofocus>Зрозуміло</button></div>
+  </dialog>
+  <style>#mobile-create-notice{width:min(560px,calc(100% - 32px));max-height:calc(100dvh - 32px);overflow:auto;border:1px solid var(--line);border-radius:16px;padding:28px;color:var(--ink);background:white}#mobile-create-notice::backdrop{background:#0008}#mobile-create-notice h2{font-size:26px;margin:0 0 18px}#mobile-create-notice .actions{margin-bottom:0}#mobile-create-notice button{font:inherit;cursor:pointer}#mobile-create-notice button:focus-visible{outline:3px solid #44444b;outline-offset:4px}</style>
+  <script>
+    (()=>{
+      const create=document.querySelector('a.create-store'),notice=document.getElementById('mobile-create-notice'),proceed=document.getElementById('mobile-create-continue');
+      proceed.href=create.href;
+      const isMobile=()=>navigator.userAgentData?.mobile||/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1)||matchMedia('(max-width: 1024px) and (pointer: coarse)').matches;
+      create.addEventListener('click',event=>{
+        if(!isMobile())return;
+        if(typeof notice.showModal!=='function'){
+          if(!confirm('Для підключення магазину відкрийте Google Таблицю в браузері та ввімкніть «Версія для комп’ютера». Перейти до шаблону?'))event.preventDefault();
+          return;
+        }
+        event.preventDefault();notice.showModal();
+      });
+      document.getElementById('mobile-create-close').addEventListener('click',()=>notice.close());
+      proceed.addEventListener('click',()=>notice.close());
+    })();
+  </script>
 </body>
 </html>
