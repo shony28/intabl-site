@@ -18,11 +18,12 @@
     @media(prefers-reduced-motion:no-preference){.button.create-store{transition:box-shadow .18s ease}}
     .setup-note{padding:16px 18px;border:1px solid var(--line);border-radius:10px;background:#eeeef1;font-size:14px;color:var(--muted)}.setup-note strong{display:block;color:var(--ink);margin-bottom:6px}
   .hero-illustration{margin:0;min-width:0}.hero-illustration img{display:block;width:100%;height:auto;border-radius:18px}.hero-illustration figcaption{text-align:center;font-size:13px;color:var(--muted);margin-top:12px}@media(max-width:800px){.hero-illustration{max-width:540px;width:100%;justify-self:center}}
-  </style>
+  .nav{flex-wrap:wrap;justify-content:flex-end}@media(max-width:480px){.nav{gap:8px 12px}}
+</style>
   <script>const params=new URLSearchParams(location.search);if(["q","category","region","city","search"].some(key=>params.has(key)))location.replace("/marketplace.html"+location.search+location.hash);</script>
 </head>
 <body>
-  <header><a class="brand" href="/" aria-label="Intabl — головна">intabl.</a><nav class="nav" aria-label="Головне меню"><a href="/marketplace.html">Знайти товари</a><a href="https://admin.intabl.com/">Увійти в кабінет ↗</a></nav></header>
+  <header><a class="brand" href="/" aria-label="Intabl — головна">intabl.</a><nav class="nav" aria-label="Головне меню"><a href="/guide.html">Посібник</a><a href="/marketplace.html">Знайти товари</a><a href="https://admin.intabl.com/">Увійти в кабінет ↗</a></nav></header>
   <main>
     <section class="hero" aria-labelledby="hero-title">
       <div><p class="eyebrow">Прайс у таблиці. Ваш магазин онлайн.</p><h1 id="hero-title">Перетворіть свій прайс на інтернет-магазин.<br><span>Безкоштовно.</span></h1><p class="lead">Створити власний магазин простіше, ніж здається. Додайте товари у готовий шаблон Google Таблиці.</p><div class="actions"><a class="button create-store" href="https://docs.google.com/spreadsheets/d/1J0fJB4WreDp9miCBiR95Zr0gCmK4Anr4M-3Ur7ko_0w/copy" target="_blank" rel="noopener noreferrer"><span>Скопіювати таблицю<br>та створити магазин ↗</span></a><a class="button secondary" href="#start">Як це працює ↓</a></div><p class="note">Без програмування. Зрозумілі кроки підключення. Створення та використання — безкоштовні.</p><p class="setup-note"><strong>Перше встановлення та налаштування — на ПК.</strong> Пройдіть ці кроки на комп’ютері або ноутбуці: з мобільного телефона початкове налаштування недоступне. Після підключення працювати з магазином можна як із телефона, так і з ПК.</p></div>
@@ -38,7 +39,8 @@
     <p class="note">Після встановлення та налаштування працювати з магазином можна як із мобільного телефона, так і з ПК.</p>
     <div class="actions"><button type="button" class="button secondary" id="mobile-create-close" autofocus>Зрозуміло</button></div>
   </dialog>
-  <style>#mobile-create-notice{width:min(560px,calc(100% - 32px));max-height:calc(100dvh - 32px);overflow:auto;border:1px solid var(--line);border-radius:16px;padding:28px;color:var(--ink);background:white}#mobile-create-notice::backdrop{background:#0008}#mobile-create-notice h2{font-size:26px;margin:0 0 18px}#mobile-create-notice .actions{margin-bottom:0}#mobile-create-notice button{font:inherit;cursor:pointer}#mobile-create-notice button:focus-visible{outline:3px solid #44444b;outline-offset:4px}</style>
+  <style>#mobile-create-notice{width:min(560px,calc(100% - 32px));max-height:calc(100dvh - 32px);overflow:auto;border:1px solid var(--line);border-radius:16px;padding:28px;color:var(--ink);background:white}#mobile-create-notice::backdrop{background:#0008}#mobile-create-notice h2{font-size:26px;margin:0 0 18px}#mobile-create-notice .actions{margin-bottom:0}#mobile-create-notice button{font:inherit;cursor:pointer}#mobile-create-notice button:focus-visible{outline:3px solid #44444b;outline-offset:4px}.nav{flex-wrap:wrap;justify-content:flex-end}@media(max-width:480px){.nav{gap:8px 12px}}
+</style>
   <script>
     (()=>{
       const create=document.querySelector('a.create-store'),notice=document.getElementById('mobile-create-notice');
