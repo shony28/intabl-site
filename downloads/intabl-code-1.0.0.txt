@@ -1,0 +1,340 @@
+const INTABL_SCRIPT_VERSION = '1.0.0';
+const INTABL_API = 'https://api.intabl.com/api/v1';
+const INTABL_ADMIN = 'https://admin.intabl.com';
+function onOpen() {
+  try{intablRefreshCatalogSheets_();intablCheckIds_(false);}catch(error){console.log(error.message);}
+  SpreadsheetApp.getUi().createMenu('⚙️INTABL')
+    .addItem('➕ Підключити магазин', 'connectIntablShop')
+    .addItem('🏪 Відкрити магазин', 'openIntablShop')
+    .addItem('👤 Відкрити кабінет', 'openIntablAdmin')
+    .addItem('📑 Оновити список товарних аркушів', 'refreshIntablCatalogSheets')
+    .addItem('🔄 Оновити товари для маркетплейсу та Google', 'syncIntablMarketplace')
+    .addItem('🔎 Перевірити артикули', 'checkIntablIds')
+    .addSeparator()
+    .addItem('📁 Налаштувати папку фото', 'configureIntablPhotos')
+    .addItem('🖼️ Оновити фото товарів і категорій', 'updateIntablPhotos')
+    .addSeparator()
+    .addItem('🔓 Перевірити доступ до товарів', 'checkIntablCatalogue')
+    .addItem('📡 Перевірити зв’язок', 'checkIntablConnection').addToUi();
+}
+function intablRequest_(path, method, payload, token) {
+  const options={method:method || 'get',muteHttpExceptions:true,followRedirects:false,headers:{'X-Intabl-Script-Version':INTABL_SCRIPT_VERSION}};
+  if(payload!==undefined){options.contentType='application/json';options.payload=JSON.stringify(payload);}
+  if(token){options.headers.Authorization='Bearer '+token;}
+  const response=UrlFetchApp.fetch(INTABL_API+path,options);
+  let result;
+  try{result=JSON.parse(response.getContentText());}catch(_){throw new Error('Сервер повернув неочікувану відповідь. HTTP '+response.getResponseCode());}
+  if(response.getResponseCode()<200 || response.getResponseCode()>=300 || !result.success){throw new Error(result.error && result.error.message || 'Помилка підключення. HTTP '+response.getResponseCode());}
+  return result.data;
+}
+function intablProperties_() {
+  const props=PropertiesService.getScriptProperties();
+  // One-time compatibility migration for existing connected spreadsheets.
+  const legacy='TIIBL_',current='INTABL_',stored=props.getProperties(),migrated={};
+  Object.keys(stored).filter(key=>key.indexOf(legacy)===0).forEach(key=>{
+    const next=current+key.slice(legacy.length);if(stored[next]===undefined)migrated[next]=stored[key];
+  });
+  if(Object.keys(migrated).length)props.setProperties(migrated);
+  Object.keys(stored).filter(key=>key.indexOf(legacy)===0).forEach(key=>props.deleteProperty(key));
+  const id=SpreadsheetApp.getActiveSpreadsheet().getId();
+  if(props.getProperty('INTABL_SHEET_ID')!==id){
+    Object.keys(props.getProperties()).filter(function(key){return key.indexOf('INTABL_')===0;}).forEach(function(key){props.deleteProperty(key);});
+    props.setProperty('INTABL_SHEET_ID',id);
+  }
+  const savedUrl=props.getProperty('INTABL_SHOP_URL') || '';
+  if(/^https:\/\/[a-z0-9-]+\.2828\.pp\.ua\/?$/.test(savedUrl)){
+    props.setProperty('INTABL_SHOP_URL',savedUrl.replace('.2828.pp.ua','.intabl.com'));
+  }
+  return props;
+}
+function connectIntablShop() {
+  try { intablCheckCatalogue_(); }
+  catch(error) { SpreadsheetApp.getUi().alert(error.message); return; }
+  const lock=LockService.getScriptLock();lock.waitLock(5000);
+  let connectUrl;
+  try{
+    const props=intablProperties_();
+    intablResetRevoked_(props);
+    if(props.getProperty('INTABL_CREDENTIAL')){connectUrl=INTABL_ADMIN;}
+    else {
+      const now=Math.floor(Date.now()/1000);
+      if(!props.getProperty('INTABL_NONCE') || Number(props.getProperty('INTABL_EXPIRES') || 0)<=now){
+        props.setProperties({INTABL_NONCE:Utilities.getUuid().replace(/-/g,'')+Utilities.getUuid().replace(/-/g,''),INTABL_EXPIRES:String(now+1700)});
+        props.deleteProperty('INTABL_CODE');
+      }
+      if(!props.getProperty('INTABL_CODE')){
+        const installation=intablRequest_('/installations/start','post',{
+          spreadsheet_id:props.getProperty('INTABL_SHEET_ID'),nonce:props.getProperty('INTABL_NONCE'),google_access_token:ScriptApp.getOAuthToken()
+        });
+        props.setProperties({INTABL_CODE:installation.code,INTABL_EXPIRES:String(installation.expires_at)});
+      }
+      connectUrl=INTABL_ADMIN+'/connect?code='+encodeURIComponent(props.getProperty('INTABL_CODE'));
+    }
+  } finally {lock.releaseLock();}
+  const view=HtmlService.createTemplateFromFile('Connect');view.connectUrl=connectUrl;
+  SpreadsheetApp.getUi().showModalDialog(view.evaluate().setWidth(460).setHeight(380),'INTABL');
+}
+function pollIntablConnection() {
+  const lock=LockService.getScriptLock();lock.waitLock(5000);
+  try{
+    const props=intablProperties_();
+    const code=props.getProperty('INTABL_CODE'),nonce=props.getProperty('INTABL_NONCE');
+    if(props.getProperty('INTABL_CREDENTIAL')){
+      const shop=intablRequest_('/shop/connection','get',undefined,props.getProperty('INTABL_CREDENTIAL'));
+      if(shop.spreadsheet_id!==props.getProperty('INTABL_SHEET_ID')){throw new Error('Ключ належить іншій таблиці.');}
+      if(code && nonce){
+        try{intablRequest_('/installations/'+code+'/ack','post',{},nonce);}catch(_){/* Credential is already safely saved; acknowledgement can expire. */}
+      }
+      return {status:'connected',shop_url:shop.shop_url};
+    }
+    if(!code || !nonce){throw new Error('Запустіть «Підключити магазин» ще раз.');}
+    const status=intablRequest_('/installations/'+code+'/status','get',undefined,nonce);
+    if(status.status!=='approved'){return status;}
+    const shop=intablRequest_('/installations/'+code+'/claim','post',{},nonce);
+    if(shop.spreadsheet_id!==props.getProperty('INTABL_SHEET_ID')){throw new Error('Підключення належить іншій таблиці.');}
+    props.setProperties({INTABL_CREDENTIAL:shop.credential,INTABL_SHOP_URL:shop.shop_url,INTABL_SHOP_ID:String(shop.shop_id)});
+    // Save first, acknowledge second: losing an HTTP response must not lose the credential.
+    try{intablRequest_('/installations/'+code+'/ack','post',{},nonce);}catch(_){}
+    return {status:'connected',shop_url:shop.shop_url};
+  } finally {lock.releaseLock();}
+}
+function checkIntablConnection() {
+  try{
+    const props=intablProperties_();
+    if(props.getProperty('INTABL_CREDENTIAL')){
+      const shop=intablRequest_('/shop/connection','get',undefined,props.getProperty('INTABL_CREDENTIAL'));
+      if(shop.spreadsheet_id!==props.getProperty('INTABL_SHEET_ID')){throw new Error('Ключ належить іншій таблиці.');}
+      SpreadsheetApp.getUi().alert('Магазин підключено: '+shop.shop_url+'\nТовари завантажуються з аркушів goods*.');
+    }else{intablRequest_('/ready');SpreadsheetApp.getUi().alert('Зв’язок із INTABL та БД працює. Таблиця ще не підключена до магазину.');}
+  }catch(error){SpreadsheetApp.getUi().alert(error.message);}
+}
+function checkIntablCatalogue() {
+  try { intablCheckCatalogue_(); SpreadsheetApp.getUi().alert('Товари доступні покупцям. Можна підключати магазин.'); }
+  catch(error) { SpreadsheetApp.getUi().alert(error.message); }
+}
+function intablCheckCatalogue_() {
+  const ss=SpreadsheetApp.getActiveSpreadsheet();
+  const parts=intablAllGoods_();intablRefreshCatalogSheets_();
+  const goods=parts[0].sheet;
+  if(!goods) { throw new Error('Не знайдено аркуш goods. Створіть копію шаблону магазину та не змінюйте назву цього аркуша.'); }
+  const expected=['id','name','description','price','image-url','tags'];
+  const headers=goods.getRange(1,1,1,6).getDisplayValues()[0];
+  if(expected.some(function(name,i){return headers[i]!==name;})) {
+    throw new Error('Поверніть заголовки першого рядка goods: '+expected.join(', ')+'.');
+  }
+  // No Authorization header: test exactly the public access required by buyers.
+  const url='https://docs.google.com/spreadsheets/d/'+encodeURIComponent(ss.getId())+'/gviz/tq?sheet='+encodeURIComponent(goods.getName())+'&range=A1%3AF1&headers=0&tqx=out%3Ajson';
+  const response=UrlFetchApp.fetch(url,{method:'get',muteHttpExceptions:true,followRedirects:false});
+  const match=response.getContentText().match(/google\.visualization\.Query\.setResponse\(([\s\S]*)\);?\s*$/);
+  let result;
+  try { result=match && JSON.parse(match[1]); } catch(_) { result=null; }
+  const cells=result && result.table && result.table.rows && result.table.rows[0] && result.table.rows[0].c;
+  if(response.getResponseCode()!==200 || !result || result.status!=='ok' || !cells || expected.some(function(name,i){return !cells[i] || cells[i].v!==name;})) {
+    throw new Error('Товари поки недоступні покупцям. Натисніть «Поділитися» → «Усі, хто має посилання» → «Читач», збережіть і повторіть перевірку. У цій таблиці мають бути лише публічні дані каталогу. Якщо доступ уже відкритий, повторіть трохи пізніше.');
+  }
+  return true;
+}
+function openIntablShop() {
+  const url=intablProperties_().getProperty('INTABL_SHOP_URL');
+  if(!url){SpreadsheetApp.getUi().alert('Спочатку підключіть магазин.');return;}
+  intablLink_(url,'Відкрити магазин');
+}
+function openIntablAdmin(){intablLink_(INTABL_ADMIN,'Відкрити кабінет');}
+function intablResetRevoked_(props){
+  const token=props.getProperty('INTABL_CREDENTIAL');if(!token)return;
+  const r=UrlFetchApp.fetch(INTABL_API+'/shop/connection',{method:'get',muteHttpExceptions:true,followRedirects:false,headers:{Authorization:'Bearer '+token,'X-Intabl-Script-Version':INTABL_SCRIPT_VERSION}});
+  if(r.getResponseCode()===401){
+    let body;try{body=JSON.parse(r.getContentText());}catch(_){return;}
+    if(body.error && body.error.code==='INVALID_CREDENTIAL'){
+      ['INTABL_CREDENTIAL','INTABL_CODE','INTABL_NONCE','INTABL_EXPIRES','INTABL_SHOP_ID','INTABL_SHOP_URL'].forEach(function(k){props.deleteProperty(k);});
+    }
+  }
+}
+function intablLink_(url,label){
+  if(!/^https:\/\/[a-z0-9-]+\.intabl\.com\/?$/.test(url)){throw new Error('Некоректна адреса магазину.');}
+  SpreadsheetApp.getUi().showModalDialog(HtmlService.createHtmlOutput('<p style="font:16px Arial;padding:20px"><a target="_blank" rel="noopener noreferrer" href="'+url+'">'+label+' ↗</a></p>').setWidth(350).setHeight(120),'INTABL');
+}
+
+// Only public sheet names. No product copies, credentials or personal data.
+function intablGoodsSheets_() {
+  const sheets=SpreadsheetApp.getActiveSpreadsheet().getSheets().filter(s=>s.getName().startsWith('goods'));
+  if(!sheets.length)throw new Error('Додайте хоча б один аркуш із назвою, що починається на goods.');
+  if(sheets.length>20)throw new Error('Підтримується до 20 аркушів goods.');
+  return sheets;
+}
+function intablCategoryParts_() {
+  const sheet=SpreadsheetApp.getActiveSpreadsheet().getSheetByName('category');
+  if(!sheet)return [];
+  const height=Math.max(1,sheet.getLastRow()),width=Math.max(1,sheet.getLastColumn());
+  if(height>1001||width>26)throw new Error('category: до 1000 категорій та 26 колонок.');
+  const values=sheet.getRange(1,1,height,width).getValues(),headers=values.shift();
+  if(!headers.some(v=>String(v).trim().toLowerCase()==='id'))throw new Error('category: бракує колонки id');
+  const idCol=headers.map(v=>String(v).trim().toLowerCase()).indexOf('id');
+  values.forEach((row,index)=>{const id=String(row[idCol]??'').trim();if(['hit','new','sale'].includes(id.toLowerCase()))throw new Error('category — рядок '+(index+2)+': ID «'+id+'» зарезервований для мітки товару. Змініть ID категорії та посилання на неї в tags.');});
+  return [{sheet,headers,rows:values}];
+}
+function intablRefreshCatalogSheets_() {
+  const ss=SpreadsheetApp.getActiveSpreadsheet(),names=intablGoodsSheets_().map(s=>[s.getName()]);
+  let manifest=ss.getSheetByName('_intabl_catalog');
+  if(manifest && manifest.getRange(1,1).getValue()!=='intabl-catalog-v1')throw new Error('Назва _intabl_catalog зарезервована системою. Перейменуйте свій аркуш.');
+  const rows=[['intabl-catalog-v1'],...names];
+  if(manifest && JSON.stringify(manifest.getRange(1,1,Math.max(1,manifest.getLastRow()),1).getValues())===JSON.stringify(rows))return;
+  if(!manifest)manifest=ss.insertSheet('_intabl_catalog');
+  const writeRows=rows.concat(Array.from({length:Math.max(0,manifest.getLastRow()-rows.length)},()=>['']));
+  manifest.getRange(1,1,writeRows.length,1).setValues(writeRows);
+  manifest.hideSheet();
+}
+function refreshIntablCatalogSheets() {
+  try{intablRefreshCatalogSheets_();SpreadsheetApp.getUi().alert('Список товарних аркушів оновлено. Зміни з’являться після оновлення кешу Google.');}
+  catch(error){SpreadsheetApp.getUi().alert(error.message);}
+}
+function onEdit(e) {
+  if(!e || !e.range || !(e.range.getSheet().getName().startsWith('goods') || e.range.getSheet().getName()==='category'))return;
+  intablRefreshCatalogSheets_();
+  const sheet=e.range.getSheet(),headers=sheet.getRange(1,1,1,Math.max(1,sheet.getLastColumn())).getValues()[0];
+  const col=headers.map(v=>String(v).trim().toLowerCase()).indexOf('id')+1;
+  if(e.range.getRow()===1 || (col && e.range.getColumn()<=col && e.range.getLastColumn()>=col))intablCheckIds_(false);
+}
+function intablAllGoods_() {
+  const sheets=intablGoodsSheets_();let count=0;
+  const parts=sheets.map(sheet=>{
+    const height=Math.max(1,sheet.getLastRow()),width=sheet.getLastColumn();count+=height-1;
+    if(count>5000||width>26)throw new Error('Каталог: до 5000 рядків разом на всіх goods-аркушах і до 26 колонок на аркуш.');
+    const values=sheet.getRange(1,1,height,Math.max(1,width)).getValues(),headers=values.shift();
+    const keys=headers.map(v=>String(v).trim().toLowerCase()),idCol=keys.indexOf('id');
+    for(const key of ['id','name','price'])if(!keys.includes(key))throw new Error(sheet.getName()+': бракує колонки '+key);
+    return {sheet,headers,rows:values};
+  });
+  const checked=parts.concat(intablCategoryParts_());
+  const duplicates=intablDuplicateIds_(checked);intablMarkDuplicateIds_(checked,duplicates);
+  if(duplicates.length)throw new Error(intablDuplicateMessage_(duplicates));
+  return parts;
+}
+
+function intablDuplicateIds_(parts){
+  const ids=new Map();
+  for(const part of parts){const col=part.headers.map(v=>String(v).trim().toLowerCase()).indexOf('id');if(col<0)continue;
+    part.rows.forEach((row,i)=>{const id=String(row[col]??'').trim();if(!id)return;if(!ids.has(id))ids.set(id,[]);ids.get(id).push({sheet:part.sheet,row:i+2,col:col+1});});
+  }
+  return Array.from(ids,([id,cells])=>({id,cells})).filter(item=>item.cells.length>1);
+}
+function intablDuplicateMessage_(duplicates){
+  return 'Повторні артикули (ID):\n'+duplicates.slice(0,20).map(item=>'«'+item.id+'»: '+item.cells.slice(0,20).map(cell=>cell.sheet.getName()+' — рядок '+cell.row).join('; ')+(item.cells.length>20?' …':'')).join('\n')+(duplicates.length>20?'\nТа ще '+(duplicates.length-20)+' повторних артикулів.':'')+'\nВиправте підсвічені червоним ID. Однакові ID не можна використовувати навіть між аркушами goods* та category.';
+}
+function intablMarkDuplicateIds_(parts,duplicates){
+  const marker='intabl-duplicate-id-v1',bySheet=new Map();
+  duplicates.forEach(item=>item.cells.forEach(cell=>{if(!bySheet.has(cell.sheet))bySheet.set(cell.sheet,[]);bySheet.get(cell.sheet).push(cell);}));
+  for(const part of parts){
+    const sheet=part.sheet,old=sheet.getConditionalFormatRules();
+    const rules=old.filter(rule=>{const condition=rule.getBooleanCondition();return !condition || !condition.getCriteriaValues().some(value=>String(value).includes(marker));});
+    const cells=bySheet.get(sheet)||[];
+    if(cells.length){
+      const column=n=>{let name='';for(;n;n=Math.floor((n-1)/26))name=String.fromCharCode(65+(n-1)%26)+name;return name;};
+      const ranges=sheet.getRangeList(cells.map(cell=>column(cell.col)+cell.row)).getRanges();
+      rules.unshift(SpreadsheetApp.newConditionalFormatRule().whenFormulaSatisfied('=N("'+marker+'")=0').setBackground('#fce8e6').setFontColor('#b91c1c').setRanges(ranges).build());
+    }
+    if(cells.length || rules.length!==old.length)sheet.setConditionalFormatRules(rules);
+  }
+}
+function intablCheckIds_(showMessage){
+  const parts=intablGoodsSheets_().map(sheet=>{const height=Math.max(1,sheet.getLastRow()),width=Math.max(1,sheet.getLastColumn());const headers=sheet.getRange(1,1,1,width).getValues()[0],col=headers.map(v=>String(v).trim().toLowerCase()).indexOf('id');if(col<0)throw new Error(sheet.getName()+': бракує колонки id');const values=height>1?sheet.getRange(2,col+1,height-1,1).getValues():[];return {sheet,headers:['id'],rows:values,actualCol:col+1};});
+  for(const part of intablCategoryParts_()){part.actualCol=part.headers.map(v=>String(v).trim().toLowerCase()).indexOf('id')+1;parts.push(part);}
+  const duplicates=intablDuplicateIds_(parts);duplicates.forEach(item=>item.cells.forEach(cell=>{cell.col=parts.find(part=>part.sheet===cell.sheet).actualCol;}));
+  intablMarkDuplicateIds_(parts,duplicates);
+  if(showMessage)SpreadsheetApp.getUi().alert(duplicates.length?intablDuplicateMessage_(duplicates):'Повторних артикулів немає. Перевірено goods* та category.');
+  return duplicates;
+}
+function checkIntablIds(){try{intablCheckIds_(true);}catch(error){SpreadsheetApp.getUi().alert(error.message);}}
+
+function intablOptionColumns_(headers){
+ const groups=[],costs=new Map(),seen=new Set();
+ for(let index=0;index<headers.length;index++){
+  const match=String(headers[index]).trim().match(/^(?:(price|pice)-)?(select|radio)\s*(?::\s*(.*))?$/i);if(!match)continue;
+  const kind=match[2].toLowerCase(),title=(match[3]||'').trim(),key=kind+(title?':'+title:'');
+  if([...title].length>40)throw new Error('Назва характеристики завелика: '+title);
+  if(match[1]){if(costs.has(key))throw new Error('Повторна колонка доплати: '+key);costs.set(key,index);}
+  else{if(seen.has(key))throw new Error('Повторна колонка характеристики: '+key);seen.add(key);groups.push({key,kind,title,index});}
+ }
+ for(const [key,index] of costs){let group=groups.find(g=>g.key===key);
+  if(!group&&!key.includes(':')){const matches=groups.filter(g=>g.kind===key);if(matches.length===1)group=matches[0];}
+  if(!group||group.costIndex!==undefined)throw new Error('Неоднозначна колонка доплати: '+key+'. Вкажіть ту саму назву, що й у характеристики.');group.costIndex=index;
+ }
+ return groups;
+}
+function intablProductOptions_(field,money,id,columns=null,row=null){
+ const result={};
+ for(const group of columns??[{key:'select',kind:'select',title:''},{key:'radio',kind:'radio',title:''}]){
+  const {key,kind,title}=group;
+  const raw=String(columns?row[group.index]??'':field(kind)??'').trim(),cost=columns?String(row[group.costIndex]??'').trim():(String(field('price-'+kind)??'').trim()||String(field('pice-'+kind)??'').trim());
+  if(!raw){if(cost)throw new Error('Товар «'+id+'»: є доплати без '+key+'.');continue;}
+  const labels=raw.split(';').map(v=>v.trim()),prices=cost?cost.split(';').map(v=>v.trim()):labels.map(()=> '0');
+  if(labels.length>50||labels.some(v=>!v||[...v].length>40)||new Set(labels).size!==labels.length||prices.length!==labels.length)throw new Error('Товар «'+id+'»: перевірте '+key+' та кількість доплат (одна на кожний варіант).');
+  result[key]=labels.map((label,i)=>{const extra=money(prices[i]);if(extra===null)throw new Error('Товар «'+id+'»: некоректна доплата '+key+'.');return {label,extra};});
+ }
+ return result;
+}
+// Public product index only. No descriptions, contacts, orders or credentials in rows.
+function intablMarketRows_(headers, rows) {
+  const keys=headers.map(function(v){return String(v).trim().toLowerCase();});
+  ['id','name','price'].forEach(function(k){if(keys.indexOf(k)<0)throw new Error('У goods бракує колонки '+k);});
+  const field=function(row,k){const i=keys.indexOf(k);return i<0?'':row[i];};
+  const columns=intablOptionColumns_(headers);
+  const out=[],seen=new Set();
+  rows.forEach(function(row,index){
+    const id=String(field(row,'id') || '').trim(),name=String(field(row,'name') || '').trim();
+    if(!id && !name)return;
+    if(!id || !name || seen.has(id))throw new Error('Перевірте ID і назву товару в рядку '+(index+2)+'. ID не можуть повторюватися.');
+    seen.add(id);
+    const available=String(field(row,'available')).toLowerCase().trim(),stock=String(field(row,'stock')).trim();
+    if(['false','off','no','0','ні'].indexOf(available)>=0 || (stock!=='' && Number.isFinite(Number(stock)) && Number(stock)<=0))return;
+    const price=String(field(row,'price')).replace(/[\s\u00a0]/g,'').replace(',','.');
+    if(!/^\d{1,8}(\.\d{1,2})?$/.test(price) || Number(price)>10000000)throw new Error('Перевірте ціну в рядку '+(index+2));
+    const money=function(v){const x=String(v).replace(/[\s\u00a0]/g,'').replace(',','.');return /^\d{1,8}(\.\d{1,2})?$/.test(x)&&Number(x)<=10000000?Math.round(Number(x)*100):null;};
+    const options=intablProductOptions_(k=>field(row,k),money,id,columns,row);
+    const minimum=Math.round(Number(price)*100)+Object.values(options).reduce((sum,choices)=>sum+Math.min(...choices.map(o=>o.extra)),0);
+    if(minimum>1000000000)throw new Error('Перевірте ціну з доплатами товару '+id);
+    const image=String(field(row,'image-url') || '').trim();
+    const categoryIds=[...new Set(String(field(row,'tags')||'').split(/[;,|]/).map(v=>v.trim()).filter(v=>v&&!['hit','new','sale'].includes(v.toLowerCase())))];
+    if(categoryIds.length>30||categoryIds.some(v=>[...v].length>128))throw new Error('Товар '+id+': до 30 категорій, ID до 128 символів.');
+    out.push({id:id,name:name,price_minor:minimum,category_ids:categoryIds,category:String(field(row,'tags') || '').trim().slice(0,120),image_url:/^https:\/\//.test(image)?image:''});
+  });
+  return out;
+}
+function syncIntablMarketplace() {
+  const lock=LockService.getScriptLock();
+  if(!lock.tryLock(1000)){SpreadsheetApp.getUi().alert('Оновлення вже виконується. Зачекайте.');return;}
+  let message,total=null,confirmed=0,transferStarted=false;
+  try {
+    const props=intablProperties_(),token=props.getProperty('INTABL_CREDENTIAL');
+    if(!token)throw new Error('Спочатку підключіть магазин.');
+    const state=intablRequest_('/marketplace/state','get',undefined,token);
+    if(state.spreadsheet_id!==props.getProperty('INTABL_SHEET_ID'))throw new Error('Підключення належить іншій таблиці.');
+    if(!state.enabled)throw new Error('У кабінеті виберіть область і населений пункт, увімкніть «Показувати товари в маркетплейсі» та збережіть зміни.');
+    intablCheckCatalogue_();
+    intablRefreshCatalogSheets_();
+    const categories=intablCategoryParts_().flatMap(part=>{
+      const keys=part.headers.map(v=>String(v).trim().toLowerCase()),idCol=keys.indexOf('id'),nameCol=keys.indexOf('name');
+      return part.rows.map(row=>({id:String(row[idCol]??'').trim(),name:String(row[nameCol]??'').trim()||String(row[idCol]??'').trim()})).filter(c=>c.id);
+    });
+    intablRequest_('/marketplace/categories','post',{categories:categories},token);
+    const rows=intablAllGoods_().flatMap(part=>intablMarketRows_(part.headers,part.rows));
+    rows.forEach(function(row){if(Utilities.newBlob(JSON.stringify(row)).getBytes().length>3000)throw new Error('Скоротіть назву або посилання на фото товару '+row.id+': запис перевищує 3000 байтів.');});
+    total=rows.length;
+    const digest=Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,JSON.stringify(rows),Utilities.Charset.UTF_8).map(function(b){return ('0'+((b+256)%256).toString(16)).slice(-2);}).join('');
+    const run=intablRequest_('/marketplace/start','post',{generation:state.generation,digest:digest,count:rows.length},token);
+    if(run.unchanged){message='Товари вже актуальні. Повторне завантаження не потрібне.';}
+    else {
+      transferStarted=true;confirmed=Math.min(rows.length,run.next_batch*20);
+      const started=Date.now();
+      for(let batch=run.next_batch;batch<Math.ceil(rows.length/20);batch++){
+        if(Date.now()-started>220000)throw new Error('Не всі товари встигли передатися за один запуск.');
+        intablRequest_('/marketplace/batch','post',{generation:state.generation,run_id:run.run_id,batch:batch,rows:rows.slice(batch*20,batch*20+20)},token);
+        confirmed=Math.min(rows.length,(batch+1)*20);
+      }
+      const result=intablRequest_('/marketplace/finish','post',{generation:state.generation,run_id:run.run_id},token);
+      message='Спільний каталог оновлено. Товарів: '+result.count+'.';
+    }
+  } catch(error){message=error.message+(transferStarted?'\n\nПідтверджено передавання: '+confirmed+' із '+total+' товарів.\n'+(confirmed<total?'Залишилося підтвердити: '+(total-confirmed)+'.':'Залишилося завершити публікацію.')+'\n\nЩоб продовжити, натисніть ОК і знову виберіть INTABL → «Оновити товари в маркетплейсі». Зробіть це протягом 30 хвилин від початку оновлення та не змінюйте товари в таблиці.\n\nТовари з’являться після завершення всього передавання. Якщо каталог уже був опублікований, до завершення показуватиметься попередня версія.':'');}
+  finally {lock.releaseLock();}
+  SpreadsheetApp.getUi().alert(message);
+}
