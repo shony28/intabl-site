@@ -9,3 +9,5 @@
 /* Preserve complete product photos, including corners, in uniform responsive frames. */
 .product-card img{display:block;min-width:0;min-height:0;object-fit:contain;object-position:center;padding:10px;align-self:start}
 @media(max-width:520px){.product-card img{padding:6px}}
+
+.product-card img{background:#fff}
