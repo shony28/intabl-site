@@ -1,0 +1,280 @@
+// Metadata only: current Drive scope is sufficient. No file contents or sharing writes.
+const INTABL_PHOTO_HEADERS = ['Назва файла','ID файла','Артикул','Посилання','Resource key','Стан'];
+const INTABL_PHOTO_MARKER = 'Intabl images v1';
+const INTABL_PHOTO_NOTE = 'Intabl photo v1: ';
+const INTABL_PHOTO_STAGE = '_intabl_images_scan';
+
+function intablPhotoFolder_(input) {
+  const value=String(input || '').trim();
+  let id=value,key='';
+  if(/^https:\/\//i.test(value)) {
+    const match=value.match(/^https:\/\/drive\.google\.com\/(?:drive\/(?:u\/\d+\/)?folders\/([\w-]+)|open\?id=([\w-]+))(?:[?&#/].*)?$/i);
+    if(!match)throw new Error('Вставте посилання на папку Google Диска.');
+    id=match[1] || match[2];
+    const keyMatch=value.match(/[?&]resourcekey=([\w-]+)/i);key=keyMatch?keyMatch[1]:'';
+  }
+  if(!/^[\w-]{10,200}$/.test(id))throw new Error('Некоректний ID папки Google Диска.');
+  return {id:id,key:key};
+}
+function intablPhotoApi_(path,params,folder) {
+  const query=Object.keys(params).map(function(k){return encodeURIComponent(k)+'='+encodeURIComponent(params[k]);}).join('&');
+  const headers={Authorization:'Bearer '+ScriptApp.getOAuthToken()};
+  if(folder && folder.key)headers['X-Goog-Drive-Resource-Keys']=folder.id+'/'+folder.key;
+  const response=UrlFetchApp.fetch('https://www.googleapis.com/drive/v3/'+path+'?'+query,{
+    method:'get',headers:headers,muteHttpExceptions:true,followRedirects:false
+  });
+  const status=response.getResponseCode();
+  if(status<200 || status>=300)throw new Error('Google Drive: HTTP '+status+'. Перевірте доступ до папки. Якщо помилка тимчасова, повторіть оновлення.');
+  let data;try{data=JSON.parse(response.getContentText());}catch(_){throw new Error('Google Drive повернув неочікувану відповідь. Повторіть оновлення.');}
+  return data;
+}
+function intablPhotoPublic_(file) {
+  return (file.permissions || []).some(function(p){return p.type==='anyone' && ['reader','writer'].indexOf(p.role)>=0 && !p.deleted;});
+}
+function intablPhotoCheckFolder_(folder) {
+  const file=intablPhotoApi_('files/'+encodeURIComponent(folder.id),{
+    fields:'id,name,mimeType,trashed,permissions(type,role,deleted)',supportsAllDrives:'true'
+  },folder);
+  if(file.trashed || file.mimeType!=='application/vnd.google-apps.folder')throw new Error('Потрібна чинна папка Google Диска.');
+  if(!intablPhotoPublic_(file))throw new Error('Відкрийте для папки доступ «Усі, хто має посилання — Читач». Скрипт не змінює доступ автоматично.');
+  return file;
+}
+function configureIntablPhotos() {
+  SpreadsheetApp.getUi().showModalDialog(HtmlService.createHtmlOutput(intablPhotoDialog_()).setWidth(560).setHeight(660),'Папка фото магазину');
+}
+function intablPhotoFolderUrl_(folder) {
+  return 'https://drive.google.com/drive/folders/'+encodeURIComponent(folder.id)+(folder.key?'?resourcekey='+encodeURIComponent(folder.key):'');
+}
+function getIntablPhotoFolderStatus() {
+  const stored=intablProperties_().getProperty('INTABL_PHOTO_FOLDER');
+  if(!stored)return {connected:false,url:'',message:'Папку ще не підключено.'};
+  let url='';
+  try {
+    const data=JSON.parse(stored),folder=intablPhotoFolder_(intablPhotoFolderUrl_(data));
+    url=intablPhotoFolderUrl_(folder);
+    const file=intablPhotoCheckFolder_(folder);
+    return {connected:true,name:file.name,url:url};
+  }catch(error){return {connected:false,url:url,message:'Папка збережена, але доступ не підтверджено. '+error.message};}
+}
+function saveIntablPhotoFolder(input,confirmOverwrite) {
+  const folder=intablPhotoFolder_(input),file=intablPhotoCheckFolder_(folder);
+  const ss=SpreadsheetApp.getActiveSpreadsheet();
+  const lock=LockService.getScriptLock();lock.waitLock(5000);
+  try {
+    const existing=ss.getSheetByName('images');
+    if(existing && existing.getRange('A1').getNote()!==INTABL_PHOTO_MARKER && existing.getLastRow()>0 && confirmOverwrite!==true) {
+      return {needsConfirmation:true,message:'Після повного сканування колонки A:F аркуша images будуть замінені службовим списком фото. Назва файла й ID залишаться в A:B для сумісності зі старими формулами.'};
+    }
+    const props=intablProperties_();
+    props.setProperty('INTABL_PHOTO_FOLDER',JSON.stringify(folder));
+    props.deleteProperty('INTABL_PHOTO_RUN');
+    if(existing)existing.getRange('A1').setNote(INTABL_PHOTO_MARKER);
+  }finally{lock.releaseLock();}
+  return {connected:true,name:file.name,url:intablPhotoFolderUrl_(folder),message:'Тепер виберіть INTABL → Оновити фото товарів і категорій. Ручні посилання та формули не перезаписуються.'};
+}
+function intablPhotoDialog_() {
+  return `<!doctype html><html lang="uk"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>
+  *{box-sizing:border-box}body{font:14px/1.5 Arial,sans-serif;color:#24352f;margin:0;padding:20px}p{margin:8px 0}#status,.rules{padding:14px 16px;border-radius:12px;margin-bottom:16px;background:#f3f5f4}#status.ok{background:#eaf7ee;color:#176534}#status.warn{background:#fff4dc;color:#795410}#folder-name{display:block;overflow-wrap:anywhere;font-weight:600}h2{font-size:16px;margin:0 0 8px}code{background:white;padding:2px 5px;border-radius:4px;font-size:13px}label{display:block;font-weight:600;margin:12px 0 6px}input[type=url]{width:100%;padding:12px;border:1px solid #adbab3;border-radius:8px;font:14px Arial}small{color:#56665d}button{padding:11px 17px;border-radius:8px;border:1px solid #bac8bf;background:white;cursor:pointer;font:600 14px Arial}button.primary{background:#1e6347;color:white;border-color:#1e6347}button:disabled{opacity:.55;cursor:wait}.actions{display:flex;justify-content:flex-end;gap:10px;margin-top:16px}#message{white-space:pre-wrap;overflow-wrap:anywhere}#message.error{color:#a52121}#confirm{padding:12px;background:#fff4dc;border-radius:8px}#confirm label{font-weight:400}a{color:inherit}
+  </style></head><body>
+  <div id="status" role="status"><span id="status-text">Перевіряємо підключення папки…</span><span id="folder-name"></span><a id="folder-link" target="_blank" rel="noopener noreferrer" hidden>Відкрити папку ↗</a></div>
+  <section id="setup-help" class="rules" hidden><h2>Як підключити папку з фото</h2><ol style="padding-left:22px;margin:0"><li>Створіть папку на Google Диску та додайте фото товарів.</li><li>Натисніть <strong>«Поділитися» → «Загальний доступ» → «Усі, хто має посилання» → «Читач»</strong>.</li><li>Натисніть <strong>«Копіювати посилання»</strong>, потім <strong>«Готово»</strong>.</li><li>Вставте посилання в поле нижче й натисніть <strong>«Зберегти папку»</strong>.</li></ol></section>
+  <section class="rules"><h2>Як називати фото</h2><p><strong>Назва файла — це артикул товару з таблиці, а не порядковий номер фото.</strong></p><p>Наприклад, для артикулу <code>cup-001</code>:</p><p>Головне фото: <code>cup-001.jpg</code><br>Додаткові: <code>cup-001__2.jpg</code>, <code>cup-001__3.jpg</code> … до <code>cup-001__10.jpg</code>.</p><p><strong>Перед номером додаткового фото ставте саме два знаки підкреслення <code>__</code>, щоб система правильно розпізнала фото.</strong> Наприклад: <code>cup-001__2.jpg</code>.</p><p><small>Підставте свій артикул із колонки sku; якщо колонки sku немає — із id. Зберігайте початкові нулі: для артикулу 00125 назва — 00125.jpg.</small></p><p><small>Для категорії використовуйте її id: наприклад, hide-decor.jpg. Формати: JPG, JPEG, JFIF, PNG, WebP, GIF. Підпапки не читаються.</small></p></section>
+  <form id="form"><label for="folder">Посилання на папку Google Диска</label><input id="folder" type="url" required placeholder="https://drive.google.com/drive/folders/…" disabled><p><small>Доступ до папки: «Усі, хто має посилання» → «Читач». Список знайдених фото з’явиться на аркуші images після оновлення.</small></p>
+  <div id="confirm" hidden><span id="confirm-text"></span><label><input type="checkbox" id="overwrite"> Дозволяю замінити колонки A:F аркуша images.</label></div>
+  <p id="message" role="status"></p><div class="actions"><button type="button" onclick="google.script.host.close()">Закрити</button><button id="save" class="primary" disabled>Зберегти папку</button></div></form>
+  <script>
+  const el=id=>document.getElementById(id);let confirmedInput='';
+  function busy(value){el('save').disabled=value;el('folder').disabled=value;el('overwrite').disabled=value;}
+  function status(data){el('setup-help').hidden=!!data.connected;el('status').className=data.connected?'ok':'warn';el('status-text').textContent=data.connected?'✅ Папку підключено':data.message;el('folder-name').textContent=data.connected?data.name:'';el('folder-link').hidden=!data.connected;if(data.connected)el('folder-link').href=data.url;}
+  function failure(error){busy(false);el('message').className='error';el('message').textContent=error.message||'Не вдалося перевірити папку. Спробуйте ще раз.';}
+  google.script.run.withSuccessHandler(data=>{status(data);el('folder').value=data.url||'';busy(false);}).withFailureHandler(error=>{status({connected:false,message:'Не вдалося перевірити підключення.'});failure(error);}).getIntablPhotoFolderStatus();
+  el('folder').addEventListener('input',()=>{confirmedInput='';el('overwrite').checked=false;el('confirm').hidden=true;});
+  el('form').addEventListener('submit',event=>{event.preventDefault();const value=el('folder').value.trim();busy(true);el('message').className='';el('message').textContent='Перевіряємо доступ і зберігаємо…';google.script.run.withSuccessHandler(data=>{busy(false);if(data.needsConfirmation){confirmedInput=value;el('confirm').hidden=false;el('confirm-text').textContent=data.message;el('message').textContent='Підтвердьте заміну службового списку та натисніть «Зберегти папку».';return;}status(data);el('folder').value=data.url;el('confirm').hidden=true;confirmedInput='';el('overwrite').checked=false;el('message').textContent=data.message;}).withFailureHandler(failure).saveIntablPhotoFolder(value,confirmedInput===value&&el('overwrite').checked);});
+  </script></body></html>`;
+}
+function intablPhotoName_(name) {
+  const match=String(name).match(/^(.+)\.(jpe?g|jfif|png|webp|gif)$/i);
+  if(!match)return null;
+  const suffix=match[1].match(/^(.+)__(\d+)$/);
+  const sku=(suffix?suffix[1]:match[1]).trim(),order=suffix?Number(suffix[2]):1;
+  if(!sku || /[\r\n]/.test(sku) || (suffix && (!/^(?:[2-9]|10)$/.test(suffix[2]))))return null;
+  return {sku:sku,order:order};
+}
+function intablPhotoRow_(file) {
+  const name=String(file.name || ''),id=String(file.id || ''),key=String(file.resourceKey || '');
+  const match=name.match(/^(.+)\.(jpe?g|jfif|png|webp|gif)$/i);
+  const parsed=intablPhotoName_(name),sku=parsed?parsed.sku:'';
+  let status='Готово',url='';
+  if(!match || !/^image\/(jpeg|png|webp|gif)$/.test(file.mimeType || ''))status='Непідтримуваний формат';
+  else if(!parsed)status='Некоректна назва: артикул.jpg або артикул__2…__10.jpg';
+  else if(!intablPhotoPublic_(file))status='Немає підтвердженого публічного доступу';
+  else if(key && (!file.linkShareMetadata || file.linkShareMetadata.securityUpdateEnabled!==false))status='Потрібен resource key: вставте перевірене посилання вручну';
+  else if(!/^[\w-]{10,200}$/.test(id))status='Некоректний ID файла';
+  else url=intablPhotoUrl_(id);
+  return [name,id,sku,url,key,status];
+}
+function intablPhotoUrl_(id) {
+  // Compatibility adapter for the existing storefront. This URL is not a Drive SLA.
+  return 'https://lh3.googleusercontent.com/d/'+encodeURIComponent(id)+'=s800';
+}
+function intablPhotoIndex_(rows) {
+  const groups=new Map(),seen=new Set();
+  rows.forEach(function(row){
+    if(seen.has(row[1]))throw new Error('Google повернув файл повторно. Налаштуйте папку ще раз і повторіть повне сканування.');
+    seen.add(row[1]);
+    const parsed=intablPhotoName_(row[0]);
+    // Re-parse filenames so a resumed scan from the previous version also groups correctly.
+    if(parsed){row[2]=parsed.sku;if(!groups.has(row[2]))groups.set(row[2],[]);groups.get(row[2]).push({row:row,order:parsed.order});}
+  });
+  const index=new Map(),additional=new Map();let conflicts=0;
+  groups.forEach(function(group,sku){
+    if(new Set(group.map(function(item){return item.order;})).size!==group.length){conflicts++;group.forEach(function(item){item.row[3]='';item.row[5]='Дублікат номера фото: залиште один файл для кожного номера';});return;}
+    const urls=group.sort(function(a,b){return a.order-b.order;}).map(function(item){return item.row[3];}).filter(Boolean);
+    if(urls.length){index.set(sku,urls[0]);additional.set(sku,urls.slice(1).join('\n'));}
+  });
+  return {index:index,additional:additional,conflicts:conflicts};
+}
+function intablPhotoPlan_(headers,values,formulas,notes,index,column) {
+  column=column || 'image-url';
+  const prefix=column==='image-urls'?'Intabl photos v1: ':INTABL_PHOTO_NOTE;
+  const markerValue=function(value){return prefix+(column==='image-urls'?JSON.stringify(value):value);};
+  const keys=headers.map(function(v){return String(v).trim().toLowerCase();});
+  ['id',column].forEach(function(k){if(keys.filter(function(v){return v===k;}).length!==1)throw new Error('На аркуші потрібна одна колонка '+k+'.');});
+  if(keys.filter(function(v){return v==='sku';}).length>1)throw new Error('У goods повторюється колонка sku.');
+  const idCol=keys.indexOf('id'),skuCol=column!=='image-url-category'&&keys.indexOf('sku')>=0?keys.indexOf('sku'):idCol,imageCol=keys.indexOf(column);
+  const counts=new Map(),ids=new Map();
+  values.forEach(function(row){
+    const sku=String(row[skuCol] || '').trim(),id=String(row[idCol] || '').trim();
+    if(sku)counts.set(sku,(counts.get(sku)||0)+1);if(id)ids.set(id,(ids.get(id)||0)+1);
+  });
+  const changes=[];let missing=0,preserved=0,duplicate=0,unchanged=0;
+  values.forEach(function(row,i){
+    const id=String(row[idCol] || '').trim(),sku=String(row[skuCol] || '').trim();
+    if(!id)return;
+    if(counts.get(sku)>1 || ids.get(id)>1){duplicate++;return;}
+    const url=index.get(sku);if(!index.has(sku)){missing++;return;}
+    const current=String(row[imageCol] || ''),note=notes[i][0] || '',formula=formulas[i][0];
+    const marker=note.split('\n').find(function(line){return line.indexOf(prefix)===0;});
+    if(formula || (current!=='' && marker!==markerValue(current))){preserved++;return;}
+    if(current===url){unchanged++;return;}
+    const ownNote=note.split('\n').filter(function(line){return line.indexOf(prefix)!==0;}).join('\n').trim();
+    changes.push({row:i+2,column:imageCol+1,before:current,note:note,url:url,nextNote:(ownNote?ownNote+'\n':'')+markerValue(url)});
+  });
+  return {changes:changes,missing:missing,preserved:preserved,duplicate:duplicate,unchanged:unchanged};
+}
+function intablPhotoTable_(ss,name) {
+  let sheet=ss.getSheetByName(name);
+  if(sheet && sheet.getLastRow()>0 && sheet.getRange('A1').getNote()!==INTABL_PHOTO_MARKER)throw new Error('Аркуш '+name+' уже містить інші дані. Для images відкрийте «Налаштувати папку фото»; службовий '+INTABL_PHOTO_STAGE+' перейменуйте.');
+  if(!sheet)sheet=ss.insertSheet(name);
+  if(sheet.getMaxColumns()<6)sheet.insertColumnsAfter(sheet.getMaxColumns(),6-sheet.getMaxColumns());
+  sheet.getRange(1,1,1,6).setValues([INTABL_PHOTO_HEADERS]).setFontWeight('bold').setBackground('#eeeeee');
+  sheet.getRange('A1').setNote(INTABL_PHOTO_MARKER);sheet.setFrozenRows(1);
+  return sheet;
+}
+function intablPhotoWriteRows_(sheet,start,rows) {
+  if(!rows.length)return;
+  const end=start+rows.length-1;
+  if(end>sheet.getMaxRows())sheet.insertRowsAfter(sheet.getMaxRows(),end-sheet.getMaxRows());
+  // Quote leading '=' to prevent filenames from becoming spreadsheet formulas.
+  const safe=rows.map(function(row){return row.map(function(v){return String(v).charAt(0)==='='?"'"+v:String(v);});});
+  sheet.getRange(start,1,rows.length,6).setNumberFormat('@').setValues(safe);
+}
+function intablPhotoApply_(goods,plan) {
+  let updated=0,skipped=0,blocks=0;const started=Date.now();
+  // Only contiguous changed cells are written; manual formulas in other rows are preserved.
+  let start=0;
+  while(start<plan.changes.length) {
+    if(blocks>=40 || Date.now()-started>90000)return {updated:updated,skipped:skipped,pending:true};
+    let end=start+1;
+    while(end<plan.changes.length && plan.changes[end].column===plan.changes[start].column && plan.changes[end].row===plan.changes[end-1].row+1)end++;
+    const batch=plan.changes.slice(start,end),range=goods.getRange(batch[0].row,batch[0].column,batch.length,1);
+    const current=range.getDisplayValues(),formulas=range.getFormulas(),notes=range.getNotes();
+    // Human edits during scanning win. Do not rewrite any cell of a changed block.
+    if(batch.some(function(change,i){return current[i][0]!==change.before || formulas[i][0] || notes[i][0]!==change.note;}))skipped+=batch.length;
+    else{range.setValues(batch.map(function(c){return [c.url];}));range.setNotes(batch.map(function(c){return [c.nextNote];}));updated+=batch.length;}
+    start=end;blocks++;
+  }
+  return {updated:updated,skipped:skipped};
+}
+function updateIntablPhotos() {
+  const lock=LockService.getScriptLock();
+  if(!lock.tryLock(1000)){SpreadsheetApp.getUi().alert('Оновлення вже виконується. Зачекайте.');return;}
+  let message;
+  try{message=intablPhotoUpdate_();}catch(error){message=error.message+'\nПоточні фото не очищаються. Повторіть «Оновити фото товарів і категорій», щоб продовжити. Для нового сканування знову налаштуйте папку.';}
+  finally{lock.releaseLock();}
+  SpreadsheetApp.getUi().alert(message);
+}
+function intablPhotoUpdate_() {
+  const ss=SpreadsheetApp.getActiveSpreadsheet(),props=intablProperties_();
+  const folder=JSON.parse(props.getProperty('INTABL_PHOTO_FOLDER') || 'null');
+  if(!folder)throw new Error('Спочатку виберіть INTABL → Налаштувати папку фото.');
+  intablPhotoCheckFolder_(folder);
+  const goodsSheets=intablAllGoods_().concat(intablCategoryParts_()).map(part=>part.sheet);intablRefreshCatalogSheets_();
+
+  let run=JSON.parse(props.getProperty('INTABL_PHOTO_RUN') || 'null');
+  const stage=intablPhotoTable_(ss,INTABL_PHOTO_STAGE);
+  if(!run || run.folder!==folder.id || Date.now()-run.started>3600000) {
+    run={folder:folder.id,started:Date.now(),count:0,page:'',done:false};
+    props.setProperty('INTABL_PHOTO_RUN',JSON.stringify(run));
+  }
+  if(stage.getLastRow()>run.count+1)stage.getRange(run.count+2,1,stage.getLastRow()-run.count-1,6).clearContent();
+  const started=Date.now();
+  for(let pages=0;!run.done && pages<5 && Date.now()-started<150000;pages++) {
+    const params={q:"'"+folder.id+"' in parents and trashed = false and mimeType contains 'image/'",pageSize:200,
+      fields:'nextPageToken,incompleteSearch,files(id,name,mimeType,resourceKey,linkShareMetadata,permissions(type,role,deleted))',
+      supportsAllDrives:'true',includeItemsFromAllDrives:'true'};
+    if(run.page)params.pageToken=run.page;
+    const result=intablPhotoApi_('files',params,folder);
+    if(result.incompleteSearch)throw new Error('Google повернув неповний список файлів. Повторіть повне сканування.');
+    const files=result.files || [];
+    if(run.count+files.length>5000)throw new Error('У папці більше 5000 фото. Виберіть меншу папку для магазину.');
+    intablPhotoWriteRows_(stage,run.count+2,files.map(intablPhotoRow_));
+    SpreadsheetApp.flush();
+    run.count+=files.length;run.page=result.nextPageToken || '';run.done=!run.page;
+    props.setProperty('INTABL_PHOTO_RUN',JSON.stringify(run));
+  }
+  if(!run.done)return 'Прочитано фото: '+run.count+'. Ще раз виберіть «Оновити фото товарів і категорій» — продовжимо з наступної порції. До завершення посилання товарів не змінюються.';
+  const rows=run.count?stage.getRange(2,1,run.count,6).getDisplayValues():[];
+  const indexed=intablPhotoIndex_(rows);
+  const plans=goodsSheets.map(goods=>{
+  const height=Math.max(1,goods.getLastRow()),width=goods.getLastColumn();
+  const values=goods.getRange(1,1,height,width).getDisplayValues(),headers=values.shift();
+  const isCategory=goods.getName()==='category',imageKey=isCategory?'image-url-category':'image-url';
+  let imageCol=headers.map(function(v){return String(v).trim().toLowerCase();}).indexOf(imageKey)+1;
+  if(!imageCol && isCategory){
+    if(width>=26)throw new Error('category: додайте image-url-category у межах A:Z.');
+    imageCol=width+1;
+    if(goods.getMaxColumns()<imageCol)goods.insertColumnsAfter(goods.getMaxColumns(),imageCol-goods.getMaxColumns());
+    goods.getRange(1,imageCol).setValue(imageKey);headers.push(imageKey);
+  }
+  if(!imageCol)throw new Error(goods.getName()+': бракує колонки '+imageKey+'.');
+  const imageRange=values.length?goods.getRange(2,imageCol,values.length,1):null;
+  const plan=intablPhotoPlan_(headers,values,imageRange?imageRange.getFormulas():[],imageRange?imageRange.getNotes():[],indexed.index,imageKey);
+  if(isCategory)return {goods,plan};
+  let galleryCol=headers.map(function(v){return String(v).trim().toLowerCase();}).indexOf('image-urls')+1;
+  if(!galleryCol && Array.from(indexed.additional.values()).some(Boolean)){
+    if(width>=26)throw new Error('Для галереї потрібна колонка image-urls у межах A:Z. Звільніть місце або перейменуйте порожню колонку.');
+    galleryCol=width+1;
+    if(goods.getMaxColumns()<galleryCol)goods.insertColumnsAfter(goods.getMaxColumns(),galleryCol-goods.getMaxColumns());
+    goods.getRange(1,galleryCol).setValue('image-urls');headers.push('image-urls');
+  }
+  if(galleryCol){
+    const range=values.length?goods.getRange(2,galleryCol,values.length,1):null;
+    const extra=intablPhotoPlan_(headers,values,range?range.getFormulas():[],range?range.getNotes():[],indexed.additional,'image-urls');
+    plan.changes=plan.changes.concat(extra.changes);plan.preserved+=extra.preserved;plan.unchanged+=extra.unchanged;
+  }
+  return {goods,plan};
+  });
+  const plan={unchanged:0,preserved:0,missing:0,duplicate:0};
+  for(const part of plans)for(const key of Object.keys(plan))plan[key]+=part.plan[key];
+  const images=intablPhotoTable_(ss,'images');
+  intablPhotoWriteRows_(images,2,rows);
+  if(images.getLastRow()>rows.length+1)images.getRange(rows.length+2,1,images.getLastRow()-rows.length-1,6).clearContent();
+  images.setColumnWidth(1,210);images.setColumnWidth(2,260);images.setColumnWidth(3,130);images.setColumnWidth(4,330);images.setColumnWidth(5,180);images.setColumnWidth(6,360);
+  const applied={updated:0,skipped:0,pending:false};
+  for(const part of plans){const result=intablPhotoApply_(part.goods,part.plan);applied.updated+=result.updated;applied.skipped+=result.skipped;applied.pending=applied.pending||result.pending;}
+  if(applied.pending){SpreadsheetApp.flush();return 'Цю порцію фото оновлено: '+applied.updated+'. Ще раз виберіть «Оновити фото товарів і категорій», щоб завершити запис. Уже оновлені фото збережені.';}
+  SpreadsheetApp.flush();props.deleteProperty('INTABL_PHOTO_RUN');
+  if(stage.getLastRow()>1)stage.getRange(2,1,stage.getLastRow()-1,6).clearContent();stage.hideSheet();
+  return 'Комірок фото оновлено: '+applied.updated+'. Уже актуальні: '+plan.unchanged+'.\nРучні посилання/формули збережено: '+plan.preserved+'. Без відповідного фото: '+plan.missing+'.\nКонфліктів номерів фото: '+indexed.conflicts+'; дублікатів товарів: '+plan.duplicate+'. Змінені під час роботи рядки пропущено: '+applied.skipped+'.\nЗнайдено файлів: '+rows.length+'. Причини пропусків дивіться на images. Головне фото товару — image-url, додаткові — image-urls; фото категорії — image-url-category.\nПеревірте фото у магазині без входу в Google. Потім виберіть «Оновити товари в маркетплейсі», щоб оновити спільний пошук.';
+}

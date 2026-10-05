@@ -104,12 +104,12 @@ function checkIntablConnection() {
     if(props.getProperty('INTABL_CREDENTIAL')){
       const shop=intablRequest_('/shop/connection','get',undefined,props.getProperty('INTABL_CREDENTIAL'));
       if(shop.spreadsheet_id!==props.getProperty('INTABL_SHEET_ID')){throw new Error('Ключ належить іншій таблиці.');}
-      SpreadsheetApp.getUi().alert('Магазин підключено: '+shop.shop_url+'\nТовари завантажуються з аркушів goods*.');
+      SpreadsheetApp.getUi().alert('✅ Магазин підключено: '+shop.shop_url+'\nТовари завантажуються з аркушів goods*.');
     }else{intablRequest_('/ready');SpreadsheetApp.getUi().alert('Зв’язок із INTABL та БД працює. Таблиця ще не підключена до магазину.');}
   }catch(error){SpreadsheetApp.getUi().alert(error.message);}
 }
 function checkIntablCatalogue() {
-  try { intablCheckCatalogue_(); SpreadsheetApp.getUi().alert('Товари доступні покупцям. Можна підключати магазин.'); }
+  try { intablCheckCatalogue_(); SpreadsheetApp.getUi().alert('✅ Товари доступні покупцям. Можна підключати магазин.'); }
   catch(error) { SpreadsheetApp.getUi().alert(error.message); }
 }
 function intablCheckCatalogue_() {
@@ -185,7 +185,7 @@ function intablRefreshCatalogSheets_() {
   manifest.hideSheet();
 }
 function refreshIntablCatalogSheets() {
-  try{intablRefreshCatalogSheets_();SpreadsheetApp.getUi().alert('Список товарних аркушів оновлено. Зміни з’являться після оновлення кешу Google.');}
+  try{intablRefreshCatalogSheets_();SpreadsheetApp.getUi().alert('✅ Список товарних аркушів оновлено. Зміни з’являться після оновлення кешу Google.');}
   catch(error){SpreadsheetApp.getUi().alert(error.message);}
 }
 function onEdit(e) {
@@ -241,7 +241,7 @@ function intablCheckIds_(showMessage){
   for(const part of intablCategoryParts_()){part.actualCol=part.headers.map(v=>String(v).trim().toLowerCase()).indexOf('id')+1;parts.push(part);}
   const duplicates=intablDuplicateIds_(parts);duplicates.forEach(item=>item.cells.forEach(cell=>{cell.col=parts.find(part=>part.sheet===cell.sheet).actualCol;}));
   intablMarkDuplicateIds_(parts,duplicates);
-  if(showMessage)SpreadsheetApp.getUi().alert(duplicates.length?intablDuplicateMessage_(duplicates):'Повторних артикулів немає. Перевірено goods* та category.');
+  if(showMessage)SpreadsheetApp.getUi().alert(duplicates.length?intablDuplicateMessage_(duplicates):'✅ Повторних артикулів немає. Перевірено goods* та category.');
   return duplicates;
 }
 function checkIntablIds(){try{intablCheckIds_(true);}catch(error){SpreadsheetApp.getUi().alert(error.message);}}
