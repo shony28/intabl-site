@@ -22,7 +22,7 @@
 footer{flex-wrap:wrap}.footer-contact{flex-basis:100%;display:flex;flex-direction:column;align-items:flex-start;gap:8px;padding-bottom:16px}.footer-contact strong{color:var(--ink);font-size:16px}.footer-contact a{display:inline-flex;align-items:center;gap:10px;padding-block:8px;font-weight:600}.telegram-icon{flex-shrink:0}
 </style>
   <script>const params=new URLSearchParams(location.search);if(["q","category","region","city","search"].some(key=>params.has(key)))location.replace("/marketplace.html"+location.search+location.hash);</script>
-<link rel="stylesheet" href="/assets/css/analytics.css?v=1"><script src="/assets/js/analytics.js?v=1" defer></script>
+<link rel="stylesheet" href="/assets/css/analytics.css?v=1"><script src="/assets/js/analytics.js?v=2" defer></script>
 </head>
 <body>
   <header><a class="brand" href="/" aria-label="Intabl — головна">intabl.</a><nav class="nav" aria-label="Головне меню"><a href="/guide.html">Як налаштувати</a><a href="/marketplace.html">Знайти товари</a><a href="https://admin.intabl.com/">Увійти в кабінет ↗</a></nav></header>
@@ -35,6 +35,22 @@ footer{flex-wrap:wrap}.footer-contact{flex-basis:100%;display:flex;flex-directio
     <section class="details" aria-label="Важливо для початку"><div><h2>Що потрібно знати</h2><details><summary>Скільки коштує створення магазину?</summary><p>Створення та використання магазину на Intabl безкоштовні. Ви можете додавати товари з Google Таблиці та приймати замовлення у своєму магазині.</p></details><details><summary>Де додавати товари?</summary><p>На аркуші goods у вашій копії шаблону. Замініть демонстраційний товар своїм. Категорії редагуйте на category. Не змінюйте назви цих аркушів і заголовки першого рядка.</p></details><details><summary>Хто бачить мою таблицю?</summary><p>Після відкриття доступу її можуть читати всі, хто має посилання. Зберігайте тут лише публічний каталог — без замовлень, телефонів покупців і паролів.</p></details><details><summary>Навіщо підтверджувати дозволи Google?</summary><p>Під час першого підключення Google попросить дозволити роботу скрипту з шаблону. Це звичайний крок для таких інструментів: дозволи потрібні, щоб перевірити вашу таблицю та підключити її до магазину без ручного налаштування коду. Ви проходите кроки підключення, а скрипт бере на себе технічну частину.</p><p>Перед підтвердженням ознайомтеся з переліком доступів і продовжуйте, якщо довіряєте шаблону Intabl.</p><p>Для зручності можна створити окремий Google-акаунт лише для магазину — без особистих файлів і листування. Скопіюйте шаблон у цей акаунт і використовуйте його також для входу в кабінет Intabl. Дозволи для підключення знадобляться і в окремому акаунті.</p></details></div><aside class="test-note"><span class="badge">Тестовий запуск</span><h3>Магазини та спільний каталог</h3><p>Можна створити магазин, показувати товари, користуватися категоріями, пошуком і кошиком.</p><p>У кабінеті можна налаштувати назву, логотип, розташування та доставку. Покупці можуть оформити замовлення, а продавці — переглядати їх і змінювати статус у кабінеті.</p><p>Для участі у спільному пошуку виберіть область і населений пункт у налаштуваннях, увімкніть участь та оновіть товари через меню INTABL у таблиці.</p><a href="/marketplace.html">Переглянути товари ↗</a></aside></section>
   </main>
   <footer><div class="footer-contact"><strong>Є запитання або пропозиція співпраці?</strong><a href="https://t.me/shonyrecords" target="_blank" rel="noopener noreferrer"><svg class="telegram-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="12" fill="#229ED9"/><path fill="#fff" d="m5.5 11.6 12.1-4.7c.6-.2 1.1.1.9.9l-2 9.4c-.1.7-.5.9-1.1.5l-3-2.2-1.5 1.4c-.2.2-.3.3-.6.3l.2-3.1 5.7-5.2c.3-.2-.1-.4-.4-.2l-7 4.4-3-1c-.7-.2-.7-.5-.3-.5Z"/></svg><span>Зв’язатися з розробником у Telegram ↗</span></a></div><span>Intabl · Безкоштовний магазин із Google Таблиці</span><span>Тестовий запуск · <a href="/data-sources.html">Джерела даних</a></span></footer>
+
+  <link rel="stylesheet" href="/assets/css/setup-preview.css?v=1">
+  <dialog id="setup-preview" aria-labelledby="setup-preview-title">
+    <button class="setup-preview-close" type="button" aria-label="Закрити підказку" autofocus>×</button>
+    <p class="eyebrow">Перед першим підключенням</p>
+    <h2 id="setup-preview-title">Google попросить надати дозволи</h2>
+    <p>У своїй копії виберіть <strong>INTABL → Підключити магазин</strong>, натисніть <strong>OK</strong> та виберіть Google-акаунт. Далі можуть з’явитися такі вікна:</p>
+    <ol class="setup-preview-steps">
+      <li><h3>1. «Додатково»</h3><a href="/assets/images/guide/05-warning.webp" target="_blank" rel="noopener" aria-label="Збільшити попередження Google"><img src="/assets/images/guide/05-warning.webp" width="1623" height="969" alt="У попередженні Google натисніть Додатково"></a><p>Додаток ще не пройшов перевірку Google. Ознайомтеся з попередженням.</p></li>
+      <li><h3>2. «Перейти до intabl…»</h3><a href="/assets/images/guide/06-proceed.webp" target="_blank" rel="noopener" aria-label="Збільшити посилання для продовження"><img src="/assets/images/guide/06-proceed.webp" width="1503" height="1046" alt="Посилання Перейти до intabl — підключення магазину (небезпечно)"></a><p>Якщо вирішили продовжити, натисніть посилання з позначкою «небезпечно».</p></li>
+      <li><h3>3. Перегляньте дозволи</h3><a href="/assets/images/guide/08-permissions.webp" target="_blank" rel="noopener" aria-label="Збільшити перелік дозволів"><img src="/assets/images/guide/08-permissions.webp" width="1172" height="1342" alt="Перелік дозволів Google з пунктом Вибрати все"></a><p>Для всіх функцій: <strong>«Вибрати все» → «Продовжити»</strong> внизу вікна.</p></li>
+    </ol>
+    <p class="setup-preview-note">Дозволи потрібні для роботи з таблицею, пошуку фото на Диску та зв’язку з intabl. <a href="/guide.html#first-setup" target="_blank" rel="noopener">Докладніше про доступи ↗</a><br>Можна використати окремий Google-акаунт для магазину. Натисніть на скріншот, щоб збільшити.</p>
+    <div class="actions"><a class="button create-store" href="https://docs.google.com/spreadsheets/d/1J0fJB4WreDp9miCBiR95Zr0gCmK4Anr4M-3Ur7ko_0w/copy" target="_blank" rel="noopener noreferrer" id="setup-preview-continue">Перейти до копіювання шаблону ↗</a><a href="/guide.html#video" target="_blank" rel="noopener">Відеоінструкція ↗</a></div>
+  </dialog>
+  <script src="/assets/js/setup-preview.js?v=1" defer></script>
   <dialog id="mobile-create-notice" aria-labelledby="mobile-create-title" aria-describedby="mobile-create-description">
     <h2 id="mobile-create-title">Перше налаштування — на ПК</h2>
     <p id="mobile-create-description">Перше встановлення та налаштування магазину потрібно виконати на комп’ютері або ноутбуці. З мобільного телефона пройти початкове налаштування не можна.</p>
@@ -48,7 +64,11 @@ footer{flex-wrap:wrap}.footer-contact{flex-basis:100%;display:flex;flex-directio
       const create=document.querySelector('a.create-store'),notice=document.getElementById('mobile-create-notice');
       const isMobile=()=>navigator.userAgentData?.mobile||/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1)||matchMedia('(max-width: 1024px) and (pointer: coarse)').matches;
       create.addEventListener('click',event=>{
-        if(!isMobile())return;
+        if(!isMobile()){
+          const preview=document.getElementById('setup-preview');
+          if(typeof preview.showModal==='function'){event.preventDefault();preview.showModal();}
+          return;
+        }
         if(typeof notice.showModal!=='function'){
           event.preventDefault();alert('Перше встановлення та налаштування магазину потрібно виконати на ПК. З мобільного телефона початкове налаштування недоступне. Після підключення працювати можна і з телефона, і з ПК.');
           return;

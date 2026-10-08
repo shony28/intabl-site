@@ -71,7 +71,7 @@
   });
   document.addEventListener('click', e => {
     const link = e.target.closest('a[href]');
-    if (!link) return;
+    if (!link || e.defaultPrevented) return;
     let url;
     try { url = new URL(link.href, location.href); } catch (_) { return; }
     if (url.hostname === 'docs.google.com' && url.pathname.endsWith('/copy')) event('template_open');
