@@ -3,6 +3,10 @@
   const key='intabl_site_language', current=document.documentElement.lang;
   let preferred=null;try{preferred=localStorage.getItem(key);}catch(_){}
   document.querySelectorAll('[data-site-language]').forEach(link=>link.addEventListener('click',()=>{try{localStorage.setItem(key,link.dataset.siteLanguage);}catch(_){}}));
+  document.querySelectorAll('.language-switch').forEach(switcher=>{
+    document.addEventListener('click',event=>{if(!switcher.contains(event.target))switcher.open=false;});
+    switcher.addEventListener('keydown',event=>{if(event.key==='Escape'){switcher.open=false;switcher.querySelector('summary').focus();}});
+  });
   const suggested=preferred||(navigator.language?.toLowerCase().startsWith('en')?'en':null);
   if(current!=='uk'||suggested!=='en')return;
   const panel=document.createElement('div');panel.className='language-suggestion';panel.lang='en';
