@@ -1,5 +1,6 @@
 (() => {
   'use strict';
+  const en = document.documentElement.lang === 'en';
   const dialog = document.getElementById('setup-preview');
   if (!dialog) return;
   dialog.querySelector('.setup-preview-close').addEventListener('click', () => dialog.close());
@@ -14,8 +15,9 @@
   closeOnBackdrop(dialog);
   const viewer = document.createElement('dialog');
   viewer.id = 'setup-image-viewer';
-  viewer.setAttribute('aria-label', 'Збільшений скріншот');
+  viewer.setAttribute('aria-label', en ? 'Enlarged screenshot' : 'Збільшений скріншот');
   viewer.innerHTML = '<button type="button" class="setup-image-close" aria-label="Закрити фото" autofocus>×</button><img alt=""><div class="setup-image-navigation"><button type="button" class="setup-image-prev" aria-label="Попереднє фото">←</button><span class="setup-image-counter" aria-live="polite" aria-atomic="true"></span><button type="button" class="setup-image-next" aria-label="Наступне фото">→</button></div>';
+  if(en){viewer.querySelector('.setup-image-close').setAttribute('aria-label','Close photo');viewer.querySelector('.setup-image-prev').setAttribute('aria-label','Previous photo');viewer.querySelector('.setup-image-next').setAttribute('aria-label','Next photo');}
   document.body.append(viewer);
   const image = viewer.querySelector('img');
   const links = [...dialog.querySelectorAll('.setup-preview-steps a')];

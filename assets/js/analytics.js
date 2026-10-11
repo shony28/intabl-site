@@ -1,5 +1,6 @@
 (() => {
   'use strict';
+  const en = document.documentElement.lang === 'en';
   const id = 'G-LD77VMCPGV';
   const key = 'intabl_analytics_consent_v1';
   const allowed = ['intabl.com', 'www.intabl.com'];
@@ -38,12 +39,13 @@
   panel.className = 'analytics-consent';
   panel.setAttribute('aria-label', 'Налаштування аналітики');
   panel.innerHTML = '<strong>Допоможете покращити intabl?</strong><p>За вашою згодою Google Analytics використовуватиме cookies, щоб рахувати відвідування та натискання кнопок. Відмова не впливає на роботу сайту. Вибір можна змінити внизу сторінки. <a href="https://policies.google.com/privacy?hl=uk" target="_blank" rel="noopener noreferrer">Політика Google ↗</a></p><div><button type="button" data-choice="denied">Без аналітики</button><button type="button" data-choice="granted">Дозволити аналітику</button></div>';
+  if(en){panel.setAttribute('aria-label','Analytics settings');panel.innerHTML='<strong>Help improve Intabl?</strong><p>With your permission, Google Analytics uses cookies to count visits and button clicks. Declining does not affect the site. You can change your choice in the footer. <a href="https://policies.google.com/privacy?hl=en" target="_blank" rel="noopener noreferrer">Google Privacy Policy ↗</a></p><div><button type="button" data-choice="denied">No analytics</button><button type="button" data-choice="granted">Allow analytics</button></div>';}
   panel.hidden = consent === 'granted' || consent === 'denied';
   document.body.append(panel);
   const settings = document.createElement('button');
   settings.type = 'button';
   settings.className = 'analytics-settings';
-  settings.textContent = 'Налаштування аналітики';
+  settings.textContent = en ? 'Analytics settings' : 'Налаштування аналітики';
   (document.querySelector('footer') || document.body).append(settings);
   settings.addEventListener('click', () => { panel.hidden = false; panel.querySelector('button').focus(); });
   panel.addEventListener('click', e => {

@@ -6,7 +6,7 @@ const code=fs.readFileSync(require('node:path').join(__dirname,'../assets/js/ana
 function run(saved=null,hostname='intabl.com') {
  const scripts=[],elements=[],listeners={},storage=new Map(saved?[['intabl_analytics_consent_v1',saved]]:[]);
  const element=()=>({dataset:{},addEventListener(k,fn){this[k]=fn},setAttribute(){},append(){},focus(){},querySelector(){return {focus(){}}}});
- const document={cookie:'_ga=old',head:{append(s){scripts.push(s)}},body:{append(e){elements.push(e)}},createElement:element,querySelector(){return {append(e){elements.push(e)}}},addEventListener(k,fn){listeners[k]=fn}};
+ const document={documentElement:{lang:'uk'},cookie:'_ga=old',head:{append(s){scripts.push(s)}},body:{append(e){elements.push(e)}},createElement:element,querySelector(){return {append(e){elements.push(e)}}},addEventListener(k,fn){listeners[k]=fn}};
  const window={};vm.runInNewContext(code,{window,document,location:{hostname,origin:'https://'+hostname,pathname:'/guide.html',href:'https://'+hostname+'/guide.html?secret=test#private'},URL,localStorage:{getItem:k=>storage.get(k),setItem:(k,v)=>storage.set(k,v)}});
  return {scripts,elements,window,choose(v){elements[0].click({target:{closest(){return {dataset:{choice:v}}}}})},click(href){listeners.click({target:{closest(){return {href}}}})}};
 }
